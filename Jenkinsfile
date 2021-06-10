@@ -7,7 +7,8 @@ node {
     def SERVER_KEY_CREDENTIALS_ID=env.SERVER_KEY_CREDENTIALS_ID
     def DEPLOYDIR='.'
     
-    def TEST_LEVEL='RunLocalTests'
+    //def TEST_LEVEL='RunLocalTests'
+    def TEST_LEVEL='RunSpecifiedTests'
     def SF_INSTANCE_URL = env.SF_INSTANCE_URL ?: "https://test.salesforce.com"
 
 
@@ -51,24 +52,38 @@ node {
 
 
 		// -------------------------------------------------------------------------
-		// Deploy metadata and execute unit tests.
+		// Generate metadata.
 		// -------------------------------------------------------------------------
 		stage('Install sfpowerkit'){
-		   //bat 'start cmd.exe /c C:\\Users\\geetikakagdiyal\\Salesforce\\June2021\\GitHub Repos\\MyPersonalDevOrg\\sfpowerkit.bat'
-		     //bat 'call C:\Users\geetikakagdiyal\Salesforce\June2021\GitHub Repos\MyPersonalDevOrg\sfpowerkit.bat'
-			//cd C:\Users\geetikakagdiyal\Salesforce\June2021\GitHub Repos\MyPersonalDevOrg
 			bat 'sfpowerkit.bat'
 		}
-		
+		// -------------------------------------------------------------------------
+		// Install sfpowerkit.
+		// -------------------------------------------------------------------------
 		stage('Delta changes'){
 		   //bat ' mkdir config'
-		   bat 'sfdx sfpowerkit:project:diff --revisionfrom %PreviousCommitId% --revisionto %LatestCommitId% --output config'
+		   bat 'sfdx sfpowerkit:project:diff --revisionfrom %PreviousCommitId% --revisionto %LatestCommitId% --output DeltaChanges'
 		   //bat 'sfdx sfpowerkit:project:diff --revisionfrom 5baec5ec4bb213ff615946d21ca108cd3c8ea965 --revisionto 8649a5eca981ece8e869bb73c7d84eecce7a79c6 --output config'
 	    }
+           
+	     // -------------------------------------------------------------------------
+	    // Example shows how to run a check-only deploy.
+	   // -------------------------------------------------------------------------
 
+		stage('Check Only Deploy') {
+			rc = command "${toolbelt}/sfdx force:source:deploy -p config/force-app --checkonly --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL} -r BatchLeadConvertTest,InstallationTests --verbose --loglevel fatal"
+		    //rc = command "${toolbelt}/sfdx force:source:deploy --deploydir ${DEPLOYDIR} --checkonly --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL}"
+		      //rc = command "${toolbelt}/sfdx force:source:deploy -p config/force-app --checkonly --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL}"
+		    if (rc != 0) {
+		        error 'Salesforce deploy failed.'
+		   }
+		}
+            // -------------------------------------------------------------------------
+		// Deploy metadata and execute unit tests.
+		// -------------------------------------------------------------------------
 			    
 		stage('Deploy and Run Tests') {
-		    rc = command "${toolbelt}/sfdx force:source:deploy -p config/force-app --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL}"
+		    rc = command "${toolbelt}/sfdx force:source:deploy -p config/force-app --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL} -r BatchLeadConvertTest,InstallationTests --verbose --loglevel fatal"
 		    //rc = command "${toolbelt}/sfdx force:source:deploy --deploydir ${DEPLOYDIR} --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL}"
 		    //rc = command "${toolbelt}/sfdx force:source:deploy -l RunLocalTests -c -d ./config --targetusername SFDX -w 10
 			
@@ -78,17 +93,7 @@ node {
 		}
 
 
-		// -------------------------------------------------------------------------
-		// Example shows how to run a check-only deploy.
-		// -------------------------------------------------------------------------
-
-		stage('Check Only Deploy') {
-		    //rc = command "${toolbelt}/sfdx force:source:deploy --deploydir ${DEPLOYDIR} --checkonly --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL}"
-		      rc = command "${toolbelt}/sfdx force:source:deploy -p config/force-app --checkonly --wait 10 --targetusername SFDX --testlevel ${TEST_LEVEL}"
-		    if (rc != 0) {
-		        error 'Salesforce deploy failed.'
-		   }
-		}
+		
 	    }
 	}
 }
